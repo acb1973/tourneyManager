@@ -11,22 +11,18 @@ my $debug=0;
 my $tokenFile="$ENV{'HOME'}/.TourneyManagerTokens";
 my $showHelp=0;
 my $tourneyListFile;
-
-# database
-# -tournament
-#    -division
-#    -season
-#    -groups
-#    
-#    - teams involved
-
-
+my $dataDir="./XML";
 
 GetOptions('debug'=>\$debug, 'tourneylistfile=s'=>\$tourneyListFile, 'help'=>\$showHelp);
 &showUsage() if ($showHelp||!length($tourneyListFile));
 
+if (! -d $dataDir) {
+    mkdir $dataDir, 0777 or die "Error: can't create '$dataDir'\n";
+}
+
 my %tokens = &checkForTokens();
 my $app=Net::OAuthStuff->new(%tokens);
+my $CHPPurl="http://chpp.hattrick.org/chppxml.ashx";
 my @tournaments;
 open(T, $tourneyListFile) or &showUsage("Error: can't open tourney list file '$tourneyListFile'");
 while(<T>) {
@@ -48,47 +44,46 @@ print "Have " . ($#tournaments+1) . " tournaments to process...\n";
 
 # OK, now we can get the matches for each team
 foreach my $tournament (@tournaments) {
-    if (-f "$tournament.xml") {
-        print "Already have result for tournament '$tournament', skipping...\n" if ($debug);
-        next;
-    }
-    my $url="http://chpp.hattrick.org/chppxml.ashx";
-    print "Fetching tourney info from URL: '$url'\n" if ($debug);
-    my $result = $app->view_restricted_resource($url, {file=>'tournamentdetails', version=>'1.0', tournamentID=>"$tournament"});
-    if (($result->is_success)&&($result->content!~/<Error>/)) {
-        my $xmloutput = $result->content;
-        open(OUT, "> $tournament.xml");
-        print OUT $xmloutput;
-        close OUT;
-        print "Wrote output for Tournament '$tournament' to '$tournament.xml'\n";
-
-        my $xmlConverter=XML::Hash->new();
-        my $dataHash = $xmlConverter->fromXMLStringtoHash($xmloutput);
-        print Dumper($dataHash) if ($debug);
-
-
+    if (! -f "$dataDir/$tournament.xml") {
+        my $tourneyInfoXML=&fetchXMLinfo({file=>'tournamentdetails', version=>'1.0', tournamentID=>"$tournament"}, "$dataDir/$tournament.xml");
     }
     else {
-        print STDERR "Error with data for tournament '$tournament', got:\n";
-        print STDERR Dumper($result);
-        die "\n";
+        print "Already have result for tournament '$tournament', skipping...\n" if ($debug);
     }
 
     # now get the tournament fixture info
-    $result = $app->view_restricted_resource($url, {file=>'tournamentfixtures', version=>'1.0', tournamentId=>"$tournament"});
-    if (($result->is_success)&&($result->content!~/<Error>/)) {
-        my $xmloutput = $result->content;
-        open(OUT, "> $tournament" . "-fixtures.xml");
-        print OUT $xmloutput;
-        close(OUT);
-        print "Wrote fixture info for tournament '$tournament' to '$tournament" . "-fixtures.xml\n";
+    if (! -f "$dataDir/$tournament" . "-fixtures.xml") {
+        my $fixtureXML = &fetchXMLinfo({file=>'tournamentfixtures', version=>'1.0', tournamentId=>"$tournament"}, "$dataDir/$tournament" . "-fixtures.xml");
     }
     else {
-        print STDERR "Error with fixture data for tournament '$tournament', got:\n";
-        print SDTERR Dumper($result);
+        print "Already have tournament fixtures for tournament '$tournament'\n" if ($debug);
+    }
+
+
+    # and the standings info
+}
+
+sub fetchXMLinfo {
+    my $apiInfo=shift;
+    my $outfile=shift;
+    my $xmloutput;
+
+    my $result = $app->view_restricted_resource($CHPPurl,$apiInfo);
+    if (($result->is_success)&&($result->content!~/<Error>/)) {
+        $xmloutput=$result->content;
+        open(OUT, "> $outfile") or die "Error: can't write '$outfile'\n";
+        print OUT $xmloutput;
+        close(OUT);
+        print "Wrote '$outfile'...\n";
+    }
+    else {
+        print STDERR "Error fetching XML data, got:\n";
+        print STDERR Dumper($result);
         die "\n";
     }
+    return $xmloutput;
 }
+
 
 sub checkForTokens {
     my %retVal;
