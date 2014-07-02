@@ -13,8 +13,10 @@ my $showHelp=0;
 my $tourneyListFile;
 my $dataDir="./XML";
 my %ownerFor;
+my %nameForTeam;
 
 my @rankedTeams;
+my @winnerTableInfo;
 
 my $xml = new XML::Simple;
 
@@ -132,6 +134,7 @@ for (my $tcnt=0; $tcnt<=$#tournaments; $tcnt++) {
         my $groupPos = 1;
         foreach my $team (@{$group->{'Teams'}->{'Team'}}) {
             my $teamID = $team->{'TeamID'};
+            $nameForTeam{$teamID} = $team->{'TeamName'};
             push @thirdPlaceTeams, $teamID if ($team->{'Position'} eq '3');
             push @fourthPlaceTeams, $teamID if ($team->{'Position'} eq '4');
             $rankingInfo{$teamID}{'PLACE'}=$team->{'Position'};
@@ -169,6 +172,8 @@ for (my $tcnt=0; $tcnt<=$#tournaments; $tcnt++) {
     print "Final tournament ranking:\n\t" . join("\n\t", @theseRanks) . "\n";
     print "WINNER of DIVISION $division: $theseRanks[0] ($ownerFor{$theseRanks[0]})\n";
 
+    push @winnerTableInfo, $division, $theseRanks[0], $ownerFor{$theseRanks[0]}, $tournaments[$tcnt];
+
     print "\nnow adjusting overall rankings... start:" . join(",", @theseRanks) . "\n";
     if ($#allRankings>0) {
         print "We have previous results, need to pull the upper-level demotees down...\n";
@@ -190,6 +195,7 @@ for (my $tcnt=0; $tcnt<=$#tournaments; $tcnt++) {
     }
     #print "\t" . join("\n\t", @allRankings) . "\n";
 
+    print "\nSignup Table:\n";
     print "[table]\n";
     print "[tr][th]div[/th][th]link[/th][th]waitlist[/th][/tr]\n";
     my $div=1;
@@ -202,8 +208,20 @@ for (my $tcnt=0; $tcnt<=$#tournaments; $tcnt++) {
         print "[/td][/tr]\n";
         $div++;
     }
-    print "[/table]\n";
+    print "[/table]\n\n";
 }
+
+print "Results table:\n";
+print "[table]\n[tr][th colspan=4 align=center]Season ??? results[/th][/tr]\n";
+print "[tr][th]Division[/th][th]Champion[/th][th]Manager[/th][th]Link[/th][/tr]\n";
+while($#winnerTableInfo>=0) {
+    my $division = shift @winnerTableInfo;
+    my $team = shift @winnerTableInfo;
+    my $owner = shift @winnerTableInfo;
+    my $tournament = shift @winnerTableInfo;
+    print "[tr][td]" . $division . "[/td][td]" . $nameForTeam{$team} . "[/td][td]" . $owner . "[/td][td][tournamentid=" . $tournament . "][/td][/tr]\n";
+}
+print "[/table]\n";
 
 sub rank {
     my $teamid1=shift;
