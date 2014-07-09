@@ -14,6 +14,7 @@ my $tourneyListFile;
 my $dataDir="./XML";
 my %ownerFor;
 my %nameForTeam;
+my %teamNumber; # teamNumber{managerName}{teamName}
 
 my @rankedTeams;
 my @winnerTableInfo;
@@ -203,7 +204,11 @@ for (my $tcnt=0; $tcnt<=$#tournaments; $tcnt++) {
         print "[tr][td]" . $div . "[/td][td] -- [/td][td]";
         for (my $c=0;$c<8;$c++) {
             my $who=$ownerFor{$allRankings[$cnt+$c]};
-            print "$who, ";
+            my $whichTeam = $teamNumber{$who}{$allRankings[$cnt+$c]};
+            my $addedText = "";
+            $addedText = " (2nd team)" if ($whichTeam==2);
+            die "Team number '$whichTeam' not supported.\n" if ($whichTeam>2);
+            print "$who$addedText, ";
         }
         print "[/td][/tr]\n";
         $div++;
@@ -272,6 +277,28 @@ sub getOwner {
     my $teamInfo = $xml->XMLin($teamInfoFile);
     #print Dumper($teamInfo);
     $ownerFor{$teamID}=$teamInfo->{'User'}->{'Loginname'};
+
+    # now, determine if this is the first or second team
+    my $managerID = $teamInfo->{'User'}->{'UserID'};
+    my $managerInfoFile = $dataDir . "/" . "Manager" . $managerID . ".xml";
+    my $managerInfoXML = &fetchXMLinfo({file=>'managercompendium', version=>'1.0', userId=>$managerID}, $managerInfoFile) if (! -f $managerInfoFile);
+
+    my $managerInfo = $xml->XMLin($managerInfoFile);
+    my $tcount = 1;
+    my $teamInfo = $managerInfo->{'Manager'}->{'Teams'}->{'Team'};
+    print Dumper($teamInfo);
+    if (ref($managerInfo->{'Manager'}->{'Teams'}->{'Team'}) eq 'ARRAY') {
+        for my $one (@{$managerInfo->{'Manager'}->{'Teams'}->{'Team'}}) {
+            print $tcount . ":$one:" . $one->{'TeamName'} . "\n";
+            if ($one->{'TeamId'} == $teamID) {
+                $teamNumber{$ownerFor{$teamID}}{$teamID} = $tcount;
+            }
+            $tcount++;
+        }
+    }
+    else {
+        $teamNumber{$ownerFor{$teamID}}{$teamID} = 1; 
+    }
 }
 
 sub fetchXMLinfo {
