@@ -14,6 +14,7 @@ my $tourneyListFile;
 my $dataDir="./XML";
 my %ownerFor;
 my %nameForTeam;
+my $force=0; #force new downloads
 my %teamNumber; # teamNumber{managerName}{teamName}
 
 my @rankedTeams;
@@ -21,7 +22,7 @@ my @winnerTableInfo;
 
 my $xml = new XML::Simple;
 
-GetOptions('debug'=>\$debug, 'tourneylistfile=s'=>\$tourneyListFile, 'help'=>\$showHelp);
+GetOptions('debug'=>\$debug, 'force'=>\$force, 'tourneylistfile=s'=>\$tourneyListFile, 'help'=>\$showHelp);
 &showUsage() if ($showHelp||!length($tourneyListFile));
 
 if (! -d $dataDir) {
@@ -66,7 +67,7 @@ for (my $tcnt=0; $tcnt<=$#tournaments; $tcnt++) {
     my $edition = $editions[$tcnt] || 1 ;
     my $baseName = "T" . $tournament . (defined($edition)?"E$edition":"");
 
-    if (! -f "$dataDir/$baseName.xml") {
+    if ((! -f "$dataDir/$baseName.xml")||$force) {
         my $tourneyInfoXML=&fetchXMLinfo({file=>'tournamentdetails', version=>'1.0', tournamentID=>"$tournament"}, "$dataDir/$baseName.xml");
     }
     else {
@@ -74,7 +75,7 @@ for (my $tcnt=0; $tcnt<=$#tournaments; $tcnt++) {
     }
 
     # now get the tournament fixture info
-    if (! -f "$dataDir/$baseName" . "-fixtures.xml") {
+    if ((! -f "$dataDir/$baseName" . "-fixtures.xml")||$force) {
         my $fixtureXML = &fetchXMLinfo({file=>'tournamentfixtures', version=>'1.0', tournamentId=>"$tournament"}, "$dataDir/$baseName" . "-fixtures.xml");
     }
     else {
@@ -82,7 +83,7 @@ for (my $tcnt=0; $tcnt<=$#tournaments; $tcnt++) {
     }
 
     # need the tournamentleaguetables XML in case of a tie
-    if (! -f "$dataDir/$baseName" . "-standings.xml") {
+    if ((! -f "$dataDir/$baseName" . "-standings.xml")||$force) {
         my $standingsXML = &fetchXMLinfo({file=>'tournamentleaguetables', version=>'1.0', tournamentId => "$tournament"}, "$dataDir/$baseName" . "-standings.xml");
     }
     else {
@@ -267,7 +268,7 @@ sub getOwner {
     my $teamID = shift;
     return $ownerFor{$teamID} if (defined($ownerFor{$teamID}));
     my $teamInfoFile = $dataDir . "/" . "Team" . $teamID . ".xml";
-    if (! -f "$teamInfoFile") {
+    if ((! -f "$teamInfoFile")||$force) {
         my $teamXML = &fetchXMLinfo({file=>'teamdetails', version=>'3.1', teamID=>"$teamID"}, $teamInfoFile);
         print "Wrote team info file for team $teamID...\n";
     }
@@ -281,7 +282,7 @@ sub getOwner {
     # now, determine if this is the first or second team
     my $managerID = $teamInfo->{'User'}->{'UserID'};
     my $managerInfoFile = $dataDir . "/" . "Manager" . $managerID . ".xml";
-    my $managerInfoXML = &fetchXMLinfo({file=>'managercompendium', version=>'1.0', userId=>$managerID}, $managerInfoFile) if (! -f $managerInfoFile);
+    my $managerInfoXML = &fetchXMLinfo({file=>'managercompendium', version=>'1.0', userId=>$managerID}, $managerInfoFile) if ((! -f $managerInfoFile)||$force);
 
     my $managerInfo = $xml->XMLin($managerInfoFile);
     my $tcount = 1;
